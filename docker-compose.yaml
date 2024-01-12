@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.7'
 
 services:
   postgres:
@@ -9,6 +9,11 @@ services:
       POSTGRES_PASSWORD: mypassword
     ports:
       - "5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: '1G'
 
   web:
     build: .
@@ -16,3 +21,8 @@ services:
       - "5001:5001"
     depends_on:
       - postgres
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: '1G'
