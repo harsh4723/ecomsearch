@@ -12,3 +12,10 @@ service:
   type: LoadBalancer
 serviceAccount:
   create: false
+ingress:
+  enabled: false
+  annotations: {}
+  pathType: ImplementationSpecific
+  path: /
+  hosts:
+    - postgres.example.com
