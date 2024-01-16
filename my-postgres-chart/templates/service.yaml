@@ -1,0 +1,15 @@
+# templates/service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "my-postgres-chart.fullname" . }}
+  labels:
+    app: {{ include "my-postgres-chart.name" . }}
+spec:
+  ports:
+    - name: postgresql
+      port: 5432
+  clusterIP: None
+  selector:
+    app: {{ include "my-postgres-chart.name" . }}

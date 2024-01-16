@@ -1,0 +1,9 @@
+# values.yaml
+
+postgresql:
+  enabled: true
+  postgresqlUsername: myuser
+  postgresqlPassword: mypassword
+  postgresqlDatabase: mydatabase
+  persistence:
+    enabled: true
