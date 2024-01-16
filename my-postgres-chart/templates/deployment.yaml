@@ -27,6 +27,8 @@ spec:
               value: {{ .Values.postgresql.postgresqlUsername }}
             - name: POSTGRES_PASSWORD
               value: {{ .Values.postgresql.postgresqlPassword }}
+            - name: PGDATA
+              value: /tmp
           ports:
             - name: postgresql
               containerPort: 5432
