@@ -7,9 +7,12 @@ metadata:
   labels:
     app: {{ include "my-postgres-chart.name" . }}
 spec:
+  type: {{ .Values.service.type }}
   ports:
     - name: postgresql
       port: 5432
-  clusterIP: None
+      targetPort: http
+      protocol: TCP
+      name: http
   selector:
     app: {{ include "my-postgres-chart.name" . }}
