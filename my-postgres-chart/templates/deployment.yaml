@@ -41,10 +41,11 @@ spec:
             - name: data
               mountPath: /var/lib/postgresql/data
   volumeClaimTemplates:
-    - metadata:
-        name: data
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        resources:
-          requests:
-            storage: 1Gi
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: {{ .Values.postgresql.persistence.storageClass | quote }}
+      resources:
+        requests:
+          storage: {{ .Values.postgresql.persistence.size }}

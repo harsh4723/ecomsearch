@@ -7,6 +7,9 @@ postgresql:
   postgresqlDatabase: mydatabase
   persistence:
     enabled: true
+    storageClass: "standard"
+    accessMode: "ReadWriteOnce"
+    size: "1Gi"
 service:
   port: 5432
   type: LoadBalancer
