@@ -10,6 +10,8 @@ postgresql:
     storageClass: "standard"
     accessMode: "ReadWriteOnce"
     size: "1Gi"
+    existingClaim: ""
+    subPath: "postgres-data"
 service:
   port: 5432
   type: LoadBalancer
