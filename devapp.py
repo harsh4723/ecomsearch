@@ -2,7 +2,7 @@ import psycopg2
 import datetime
 
 db_params = {
-    'host': '35.245.250.43',
+    'host': '35.245.28.175',
     'port': 5432,
     'database': 'mydatabase',
     'user': 'myuser',
