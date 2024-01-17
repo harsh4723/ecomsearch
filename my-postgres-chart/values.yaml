@@ -15,6 +15,9 @@ postgresql:
 service:
   port: 5432
   type: LoadBalancer
+  external: false
+  annotations:
+    networking.gke.io/load-balancer-type: "Internal"
 serviceAccount:
   create: false
 ingress:

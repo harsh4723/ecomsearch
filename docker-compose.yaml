@@ -14,13 +14,17 @@ services:
         limits:
           cpus: '1'
           memory: '1G'
-
+  redis:
+    image: redis:3.2.12
+    ports:
+      - "6379:6379"
   web:
     build: .
     ports:
       - "5001:5001"
     depends_on:
       - postgres
+      - redis
     deploy:
       resources:
         limits:

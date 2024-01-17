@@ -1,7 +1,8 @@
 from flask import Flask, jsonify, request
 import psycopg2
 import datetime
-
+import redis
+import sys
 app = Flask(__name__)
 
 # Connection parameters
@@ -12,6 +13,127 @@ db_params = {
     'user': 'myuser',
     'password': 'mypassword'
 }
+
+redis_host = "redis" 
+redis_port = 6379
+
+redis_client = redis.StrictRedis(host=redis_host, port=redis_port, decode_responses=True)
+
+@app.route('/v2/stores/insertbatch', methods=['POST'])
+def insert_batch_v2():
+    ## redis insert 
+    data = request.get_json()
+    print("Got reuqest for inserting ", len(data))
+    for json_obj in data:
+        values = {
+            "storeId":json_obj["storeId"],
+            "name": json_obj["name"],
+            "location":  json_obj["location"]
+        }
+        store_key = "store:"+ json_obj["storeId"]
+        for products in json_obj["products"]:
+            products["storeProductId"] = json_obj["storeId"]+ "_" + products["uniqueId"]
+            products["storeId"] = json_obj["storeId"]
+            product_values = {
+                "storeProductId": products["storeProductId"],
+                "uniqueId": products["uniqueId"],
+                "storeId":  products["storeId"],
+                "s_p_selling_price": str(products["s_p_selling_price"]),
+                "s_p_availability" : str(products["s_p_availability"]),
+                "s_p_size": str(products["s_p_color"])
+            }
+            store_products_key = "store_products:"+ products["storeProductId"]
+            
+            for variants in products.get("variants"):
+                variants["productId"] = products["uniqueId"]
+                variants["storeId"] = json_obj["storeId"]
+                variants["storeVariantId"] = json_obj["storeId"]+ "_" + variants["variantId"]
+                variants_values = {
+                    "storeVariantId": variants.get("storeVariantId"),
+                    "productId": variants.get("productId"),
+                    "storeId": variants.get("storeId"),
+                    "variantId": variants.get("variantId"),
+                    "s_v_onSale": str(variants.get("s_v_onSale")),
+                    "s_v_displayable": str(variants.get("s_v_displayable")),
+                    "s_v_giftCard": str(variants.get("s_v_giftCard")),
+                    "s_v_size": str(variants.get("s_v_size")),
+                    "s_v_redline": str(variants.get("s_v_redline")),
+                    "s_v_storeAvailability": str(variants.get("s_v_storeAvailability"))
+                }
+                hash_key_variants = "store_variants:"+ variants.get("storeVariantId")
+                redis_client.hmset(hash_key_variants, variants_values)
+            
+            redis_client.hmset(store_products_key,product_values)
+        
+        redis_client.hmset(store_key,values)
+    
+    return jsonify({'message': 'Batch insertion for stores successful'}), 201
+
+
+@app.route("/v2/products/insertbatch", methods=["POST"])
+def insert_products_v2():
+    data = request.get_json()
+    for json_obj in data:
+        values = {
+            "colorName": str(json_obj.get("colorName")),
+            "size": str(json_obj.get("size")),
+            "description": str(json_obj.get("description")),
+            "uniqueId": str(json_obj.get("uniqueId")),
+            "catlevel2": str(json_obj.get("catlevel2")),
+            "productInventory": str(json_obj.get("productInventory")),
+            "newProduct": str(json_obj.get("newProduct")),
+            "pattern": str(json_obj.get("pattern")),
+            "productImage": str(json_obj.get("productImage")),
+            "color": str(json_obj.get("color")),
+            "imageUrl": str(json_obj.get("imageUrl"))
+        }
+        hash_key_products = "products:"+ json_obj.get("uniqueId")
+        for varinats in json_obj.get("variants"):
+            varinats["productId"] = json_obj.get("uniqueId")
+            variants_values = {
+                "variantId": str(varinats.get("variantId")),
+                "v_currentPrice": str(varinats.get("v_currentPrice")),
+                "v_originalPrice": str(varinats.get("v_originalPrice")),
+                "v_displayMSRP": str(varinats.get("v_displayMSRP")),
+                "productId": str(varinats.get("productId")),
+                "v_color": str(varinats.get("v_color")),
+                "v_colorCode": str(varinats.get("v_colorCode")),
+                "v_unbxd_color_mapping": str(varinats.get("v_unbxd_color_mapping"))
+            }
+            hash_key_variants = "variant:"+ varinats.get("variantId")
+            redis_client.hmset(hash_key_variants, variants_values)
+
+        redis_client.hmset(hash_key_products, values)
+    
+    return jsonify({'message': 'Batch insertion for products successful'}), 201
+
+
+@app.route('/v2/product/deatils', methods= ['POST'])
+def get_products_details():
+    start = datetime.datetime.now()
+    data = request.get_json()
+    # retrived_data = redis_client.hgetall("store_products:344_04587232")
+    # retrived_data["sr"] = "1223"
+    # print(retrived_data, file=sys.stdout)
+    # sys.stdout.flush()
+    response = []
+    for product in data["products"]:
+        _product = redis_client.hgetall("products:"+ product["uniqueId"])
+        stores_vals = []
+        for store in product["stores"]:
+            store_products = redis_client.hgetall("store_products:"+store["id"]+"_"+product["uniqueId"])
+            _store = redis_client.hgetall("store:"+store["id"])
+            stores_vals.append({**_store, **store_products})
+        _product["stores"] = stores_vals
+        response.append(_product)
+    time_clocked = datetime.datetime.now() - start
+    time_taken = int(time_clocked.total_seconds() * 1000)
+    res = {
+        "products": response,
+        "msTaken" : time_taken,
+        'numProducts' : len(response)
+    }
+    return jsonify(res), 200
 
 @app.route('/stores/insertbatch', methods=['POST'])
 def insert_stores():
@@ -174,40 +296,44 @@ def retrieve_for_query():
     cursor = connection.cursor()
     # filter_product_query = """
     #     SELECT
-    #         pht.uniqueId
+    #         pht.uniqueId,
+    #         ARRAY_AGG(filtered_variants.variantId) AS variantIds
     #     FROM
-    #         stores sh
+    #         (
+    #             SELECT
+    #                 v.variantId,
+    #                 v.productId
+    #             FROM
+    #                 stores_specific_variants sph
+    #             JOIN
+    #                 variants v ON sph.variantId = v.variantId
+    #             WHERE
+    #                 sph.storeId IN ('363', '369', '366', '2075', '361', '586')
+    #                 AND sph.s_v_size NOT IN ('XS', 'XXL')
+    #                 AND v.v_color NOT IN ('Blue')
+    #         ) AS filtered_variants
     #     JOIN
-    #         stores_specific_products sph ON sh.storeId = sph.storeId
-    #     JOIN
-    #         products pht ON sph.uniqueId = pht.uniqueId
-    #     WHERE
-    #         sh.storeId IN ('363')
-    #         AND 'XS' = ANY(sph.s_p_size)
-    #         AND 'Blue' = ANY(pht.color)
+    #         products pht ON filtered_variants.productId = pht.uniqueId
+    #     GROUP BY
+    #         pht.uniqueId
     #     LIMIT
-    #         2060;
+    #         5000;
     # """
+
     filter_product_query = """
         SELECT
             pht.uniqueId,
-            ARRAY_AGG(filtered_variants.variantId) AS variantIds
+            ARRAY_AGG( sh.storeId) AS stores
         FROM
-            (
-                SELECT
-                    v.variantId,
-                    v.productId
-                FROM
-                    stores_specific_variants sph
-                JOIN
-                    variants v ON sph.variantId = v.variantId
-                WHERE
-                    sph.storeId IN ('363', '369', '366', '2075', '361', '586')
-                    AND sph.s_v_size NOT IN ('XS', 'XXL')
-                    AND v.v_color NOT IN ('Blue')
-            ) AS filtered_variants
+            stores sh
         JOIN
-            products pht ON filtered_variants.productId = pht.uniqueId
+            stores_specific_products sph ON sh.storeId = sph.storeId
+        JOIN
+            products pht ON sph.uniqueId = pht.uniqueId
+        WHERE
+            EXISTS (SELECT 1 FROM unnest(ARRAY['369']) AS x(storeId) WHERE x.storeId = sh.storeId)
+            AND 'XS' = ANY(sph.s_p_size)
+            AND 'Brown' = ANY(pht.color)
         GROUP BY
             pht.uniqueId
         LIMIT
@@ -218,12 +344,20 @@ def retrieve_for_query():
     results = cursor.fetchall()
     cursor.close()
     connection.close()
-    output = [{"uniqueId": row[0], "variantIds": row[1]} for row in results]
+    output = []
+    for row in results:
+        new_store_ids = []
+        for store_id in row[1]:
+            new_store_ids.append({"id":store_id})
+        output.append({"uniqueId": row[0], "stores":new_store_ids})
+
+    #output = [{"uniqueId": row[0], "stores": row[1]} for row in results]
     time_clocked = datetime.datetime.now() - start
     time_taken = int(time_clocked.total_seconds() * 1000)
     response = {
-        'output': output,
-        'time_taken': time_taken
+        'products': output,
+        'time_taken': time_taken,
+        'numProducts': len(output)
     }
     
     return jsonify(response)
