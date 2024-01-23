@@ -3,6 +3,10 @@ import psycopg2
 import datetime
 import redis
 import sys
+import aioredis
+import asyncio
+import json
+
 app = Flask(__name__)
 
 # Connection parameters
@@ -61,11 +65,11 @@ def insert_batch_v2():
                     "s_v_storeAvailability": str(variants.get("s_v_storeAvailability"))
                 }
                 hash_key_variants = "store_variants:"+ variants.get("storeVariantId")
-                redis_client.hmset(hash_key_variants, variants_values)
+                redis_client.set(hash_key_variants, json.dumps(variants_values))
             
-            redis_client.hmset(store_products_key,product_values)
+            redis_client.set(store_products_key,json.dumps(product_values))
         
-        redis_client.hmset(store_key,values)
+        redis_client.set(store_key,json.dumps(values))
     
     return jsonify({'message': 'Batch insertion for stores successful'}), 201
 
@@ -101,21 +105,17 @@ def insert_products_v2():
                 "v_unbxd_color_mapping": str(varinats.get("v_unbxd_color_mapping"))
             }
             hash_key_variants = "variant:"+ varinats.get("variantId")
-            redis_client.hmset(hash_key_variants, variants_values)
+            redis_client.set(hash_key_variants, json.dumps(variants_values))
 
-        redis_client.hmset(hash_key_products, values)
+        redis_client.set(hash_key_products, json.dumps(values))
     
     return jsonify({'message': 'Batch insertion for products successful'}), 201
 
 
-@app.route('/v2/product/deatils', methods= ['POST'])
+@app.route('/v2/product/details', methods= ['POST'])
 def get_products_details():
     start = datetime.datetime.now()
     data = request.get_json()
-    # retrived_data = redis_client.hgetall("store_products:344_04587232")
-    # retrived_data["sr"] = "1223"
-    # print(retrived_data, file=sys.stdout)
-    # sys.stdout.flush()
     response = []
     for product in data["products"]:
         _product = redis_client.hgetall("products:"+ product["uniqueId"])
@@ -134,6 +134,214 @@ def get_products_details():
         'numProducts' : len(response)
     }
     return jsonify(res), 200
+
+@app.route('/v5/product/details', methods= ['POST'])
+def get_products_details_v5():
+    start = datetime.datetime.now()
+    data = request.get_json()
+    response = []
+    for product in data["products"]:
+        _product1 = redis_client.get("products:"+ product["uniqueId"])
+        _product = {}
+        if _product1 is not None:
+            _product = json.loads(_product1)
+        stores_vals = []
+        for store in product["stores"]:
+            store_products1 = redis_client.get("store_products:"+store["id"]+"_"+product["uniqueId"])
+            store_products = {}
+            if store_products1 is not None: 
+                store_products = json.loads(store_products1)
+            _store1 = redis_client.get("store:"+store["id"])
+            _store = {}
+            if _store1 is not None:
+                _store = json.loads(_store1)
+            stores_vals.append({**_store, **store_products})
+        _product["stores"] = stores_vals
+        response.append(_product)
+    time_clocked = datetime.datetime.now() - start
+    time_taken = int(time_clocked.total_seconds() * 1000)
+    res = {
+        "products": response,
+        "msTaken" : time_taken,
+        'numProducts' : len(response)
+    }
+    return jsonify(res), 200
+
+@app.route('/v6/product/details', methods= ['POST'])
+def get_products_details_v6():
+    start = datetime.datetime.now()
+    data = request.get_json()
+    response = []
+
+    # Prepare the list of keys to fetch using MGET for products
+
+    product_keys = []
+    store_product_keys = []
+    unique_store_keys = {}
+    for product in data["products"]:
+        product_keys.append("products:" + product["uniqueId"])
+        for store in product["stores"]:
+            store_product_keys.append("store_products:"+store["id"]+"_"+product["uniqueId"])
+            unique_store_keys["store:"+store["id"]] = 1
+    
+    product_vals = redis_client.mget(product_keys)
+    store_product_vals =  redis_client.mget(store_product_keys)
+    store_vals = redis_client.mget(list(unique_store_keys.keys()))
+    
+    product_val_map = {}
+    for product in product_vals:
+        if product is not None:
+            _product = json.loads(product)
+            product_val_map["products:"+_product["uniqueId"]] = _product
+    # print("harsh prrrrrr", product_val_map)
+    store_vals_map = {}
+    for store in store_vals:
+        if store is not None:
+            _store = json.loads(store)
+            store_vals_map["store:"+_store["storeId"]] = _store
+
+    store_prod_vals_map = {}
+    for store_prod in store_product_vals:
+        if store_prod is not None:
+            _store_prod = json.loads(store_prod)
+            store_prod_vals_map["store_products:"+_store_prod["storeProductId"]] = _store_prod
+
+    for product in data["products"]:
+        # print("uniqueId", product["uniqueId"])
+        # sys.stdout.flush()
+        _product = product_val_map.get("products:"+ product["uniqueId"],{})
+        # print("Harsh prrrrr",_product)
+        # sys.stdout.flush()
+        stores_vals = []
+        for store in product["stores"]:
+            store_products = store_prod_vals_map.get("store_products:"+store["id"]+"_"+product["uniqueId"], {})
+            
+            _store = store_vals_map.get("store:"+store["id"],{})
+            stores_vals.append({**_store, **store_products})
+        _product["stores"] = stores_vals
+        response.append(_product)
+    
+    time_clocked = datetime.datetime.now() - start
+    time_taken = int(time_clocked.total_seconds() * 1000)
+    res = {
+        "products": response,
+        "msTaken" : time_taken,
+        'numProducts' : len(response)
+    }
+    return jsonify(res), 200
+
+
+@app.route('/v3/product/details', methods=['POST'])
+def get_products_details_v3():
+    start = datetime.datetime.now()
+    data = request.get_json()
+    response = []
+
+    # Create a pipeline for batched Redis commands
+    pipeline = redis_client.pipeline()
+
+    # Queue up all hgetall commands for products
+    for product in data["products"]:
+        pipeline.hgetall("products:" + product["uniqueId"])
+
+    # Execute the pipeline and get results for products
+    product_results = pipeline.execute()
+
+    for i, product in enumerate(data["products"]):
+        _product = product_results[i]
+        stores_vals = []
+
+        # Queue up hgetall commands for store products and stores
+        for store in product["stores"]:
+            pipeline.hgetall("store_products:" + store["id"] + "_" + product["uniqueId"])
+            pipeline.hgetall("store:" + store["id"])
+
+        # Execute the pipeline and get results for store products and stores
+        store_results = pipeline.execute()
+
+        # Process the results and build the response
+        for j, store in enumerate(product["stores"]):
+            store_products = store_results[j * 2]
+            _store = store_results[j * 2 + 1]
+            stores_vals.append({**_store, **store_products})
+
+        _product["stores"] = stores_vals
+        response.append(_product)
+
+    time_clocked = datetime.datetime.now() - start
+    time_taken = int(time_clocked.total_seconds() * 1000)
+    res = {
+        "products": response,
+        "msTaken": time_taken,
+        'numProducts': len(response)
+    }
+    return jsonify(res), 200
+
+
+async def fetch_product_details(redis, product):
+    # Asynchronously fetch product details
+    product_key = "products:" + product["uniqueId"]
+    product_key_str = product_key.decode('utf-8') if isinstance(product_key, bytes) else product_key
+    _product = await redis.hgetall(product_key_str)
+
+    # Asynchronously fetch store details and store products
+    stores_vals = []
+    for store in product["stores"]:
+        store_products_key = "store_products:" + store["id"] + "_" + product["uniqueId"]
+        store_key = "store:" + store["id"]
+
+        store_products_key_str = store_products_key.decode('utf-8') if isinstance(store_products_key, bytes) else store_products_key
+        store_key_str = store_key.decode('utf-8') if isinstance(store_key, bytes) else store_key
+        
+        store_products = await redis.hgetall(store_products_key_str)
+        _store = await redis.hgetall(store_key_str)
+        
+        stores_vals.append({**_store, **store_products})
+
+    return {**_product, "stores": stores_vals}
+
+async def get_product_details(product):
+    _product = await redis_client.hgetall("products:" + product["uniqueId"])
+    stores_vals = []
+    for store in product["stores"]:
+        store_products = await redis_client.hgetall("store_products:" + store["id"] + "_" + product["uniqueId"])
+        _store = await redis_client.hgetall("store:" + store["id"])
+        stores_vals.append({**_store, **store_products})
+    _product["stores"] = stores_vals
+    return _product
+
+async def process_products_data(data):
+    tasks = [get_product_details(product) for product in data["products"]]
+    return await asyncio.gather(*tasks)
+
+@app.route('/v4/product/details', methods=['POST'])
+async def get_products_details_v4():
+    start = datetime.datetime.now()
+    data = request.get_json()
+    
+    # Create an aioredis connection pool
+    redis_pool = await aioredis.create_redis_pool((redis_host,redis_port), minsize=5, maxsize=10)
+    print("Harsh redis created")
+    sys.stdout.flush()
+    # Use aioredis connection pool
+    global redis_client
+    redis_client = redis_pool
+    
+    try:
+        response = await process_products_data(data)
+        time_clocked = datetime.datetime.now() - start
+        time_taken = int(time_clocked.total_seconds() * 1000)
+        res = {
+            "products": response,
+            "msTaken": time_taken,
+            'numProducts': len(response)
+        }
+        return jsonify(res), 200
+    finally:
+        # Close the connection pool when done
+        redis_pool.close()
+        await redis_pool.wait_closed()
+
 
 @app.route('/stores/insertbatch', methods=['POST'])
 def insert_stores():

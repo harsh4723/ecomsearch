@@ -234,7 +234,82 @@ def get_postgres_version():
     connection.close()
     print("postgres version", version[0])
 
+
+def retrieve_for_query():
+    start = datetime.datetime.now()
+    connection = psycopg2.connect(**db_params)
+    cursor = connection.cursor()
+    # filter_product_query = """
+    #     SELECT
+    #         pht.uniqueId,
+    #         ARRAY_AGG(filtered_variants.variantId) AS variantIds
+    #     FROM
+    #         (
+    #             SELECT
+    #                 v.variantId,
+    #                 v.productId
+    #             FROM
+    #                 stores_specific_variants sph
+    #             JOIN
+    #                 variants v ON sph.variantId = v.variantId
+    #             WHERE
+    #                 sph.storeId IN ('363', '369', '366', '2075', '361', '586')
+    #                 AND sph.s_v_size NOT IN ('XS', 'XXL')
+    #                 AND v.v_color NOT IN ('Blue')
+    #         ) AS filtered_variants
+    #     JOIN
+    #         products pht ON filtered_variants.productId = pht.uniqueId
+    #     GROUP BY
+    #         pht.uniqueId
+    #     LIMIT
+    #         5000;
+    # """
+
+    filter_product_query = """
+        SELECT
+            pht.uniqueId,
+            ARRAY_AGG( sh.storeId) AS stores
+        FROM
+            stores sh
+        JOIN
+            stores_specific_products sph ON sh.storeId = sph.storeId
+        JOIN
+            products pht ON sph.uniqueId = pht.uniqueId
+        WHERE
+            EXISTS (SELECT 1 FROM unnest(ARRAY['369']) AS x(storeId) WHERE x.storeId = sh.storeId)
+            AND 'XS' = ANY(sph.s_p_size)
+            AND 'Brown' = ANY(pht.color)
+        GROUP BY
+            pht.uniqueId
+        LIMIT
+            5000;
+    """
+    cursor.execute(filter_product_query)
+
+    results = cursor.fetchall()
+    cursor.close()
+    connection.close()
+    output = []
+    for row in results:
+        new_store_ids = []
+        for store_id in row[1]:
+            new_store_ids.append({"id":store_id})
+        output.append({"uniqueId": row[0], "stores":new_store_ids})
+
+    #output = [{"uniqueId": row[0], "stores": row[1]} for row in results]
+    time_clocked = datetime.datetime.now() - start
+    time_taken = int(time_clocked.total_seconds() * 1000)
+    response = {
+        'products': output,
+        'time_taken': time_taken,
+        'numProducts': len(output)
+    }
+    print("Len of products",len(output))
+    print("Response", response)
+    print("time taken", time_taken)
+
 get_postgres_version()
 
-insert_stores()
-insert_products()
+# insert_stores()
+# insert_products()
+retrieve_for_query()
