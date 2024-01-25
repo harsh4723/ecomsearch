@@ -6,6 +6,8 @@ import sys
 import aioredis
 import asyncio
 import json
+import aerospike
+
 
 app = Flask(__name__)
 
@@ -22,6 +24,13 @@ redis_host = "redis"
 redis_port = 6379
 
 redis_client = redis.StrictRedis(host=redis_host, port=redis_port, decode_responses=True)
+
+config = {
+    'hosts': [('as1', 3000)]
+}
+
+asclient = aerospike.client(config).connect()
+
 
 @app.route('/v2/stores/insertbatch', methods=['POST'])
 def insert_batch_v2():
@@ -399,70 +408,6 @@ def get_products_details_v3():
     return jsonify(res), 200
 
 
-# async def fetch_product_details(redis, product):
-#     # Asynchronously fetch product details
-#     product_key = "products:" + product["uniqueId"]
-#     product_key_str = product_key.decode('utf-8') if isinstance(product_key, bytes) else product_key
-#     _product = await redis.hgetall(product_key_str)
-
-#     # Asynchronously fetch store details and store products
-#     stores_vals = []
-#     for store in product["stores"]:
-#         store_products_key = "store_products:" + store["id"] + "_" + product["uniqueId"]
-#         store_key = "store:" + store["id"]
-
-#         store_products_key_str = store_products_key.decode('utf-8') if isinstance(store_products_key, bytes) else store_products_key
-#         store_key_str = store_key.decode('utf-8') if isinstance(store_key, bytes) else store_key
-        
-#         store_products = await redis.hgetall(store_products_key_str)
-#         _store = await redis.hgetall(store_key_str)
-        
-#         stores_vals.append({**_store, **store_products})
-
-#     return {**_product, "stores": stores_vals}
-
-# async def get_product_details(product):
-#     _product = await redis_client.hgetall("products:" + product["uniqueId"])
-#     stores_vals = []
-#     for store in product["stores"]:
-#         store_products = await redis_client.hgetall("store_products:" + store["id"] + "_" + product["uniqueId"])
-#         _store = await redis_client.hgetall("store:" + store["id"])
-#         stores_vals.append({**_store, **store_products})
-#     _product["stores"] = stores_vals
-#     return _product
-
-# async def process_products_data(data):
-#     tasks = [get_product_details(product) for product in data["products"]]
-#     return await asyncio.gather(*tasks)
-
-# @app.route('/v4/product/details', methods=['POST'])
-# async def get_products_details_v4():
-#     start = datetime.datetime.now()
-#     data = request.get_json()
-    
-#     # Create an aioredis connection pool
-#     redis_pool = await aioredis.create_redis_pool((redis_host,redis_port), minsize=5, maxsize=10)
-#     print("Harsh redis created")
-#     sys.stdout.flush()
-#     # Use aioredis connection pool
-#     global redis_client
-#     redis_client = redis_pool
-    
-#     try:
-#         response = await process_products_data(data)
-#         time_clocked = datetime.datetime.now() - start
-#         time_taken = int(time_clocked.total_seconds() * 1000)
-#         res = {
-#             "products": response,
-#             "msTaken": time_taken,
-#             'numProducts': len(response)
-#         }
-#         return jsonify(res), 200
-#     finally:
-#         # Close the connection pool when done
-#         redis_pool.close()
-#         await redis_pool.wait_closed()
-
 
 @app.route('/stores/insertbatch', methods=['POST'])
 def insert_stores():
@@ -710,6 +655,202 @@ def get_postgres_version():
     return jsonify({'PostgreSQL version': version[0]})
 
 
+
+########### aerospike ########
+
+@app.route('/v3/stores/insertbatch', methods=['POST'])
+def insert_stores_v3():
+    data = request.get_json()
+    # Specify the serializer (SERIALIZER_PYTHON in this example)
+    policy = {'serializer': aerospike.SERIALIZER_JSON}
+    for json_obj in data:
+        store_key = ('test', 'stores', str(json_obj["storeId"]))
+        store_bins = {
+            'name': json_obj["name"],
+            'location': json_obj["location"]
+        }
+
+        asclient.put(store_key, store_bins, policy=policy)
+
+        for products in json_obj["products"]:
+            product_key = ('test', 'store_specific_products', str(json_obj["storeId"]) + "_" + str(products["uniqueId"]))
+            product_bins = {
+                'uniqueId': str(products["uniqueId"]),
+                'storeId': str(json_obj["storeId"]),
+                's_p_sell': str(products["s_p_selling_price"]),
+                's_p_avail': str(products["s_p_availability"]),
+                's_p_size': str(products["s_p_size"]),
+                's_p_color': str(products["s_p_color"])
+            }
+
+            asclient.put(product_key, product_bins, policy=policy)
+
+            for variants in products["variants"]:
+                variant_key = ('test', 'store_specific_variants', str(json_obj["storeId"]) + "_" + str(variants["variantId"]))
+                variant_bins = {
+                    'productId': str(products.get("uniqueId")),
+                    'storeId': str(json_obj.get("storeId")),
+                    'variantId': str(variants.get("variantId")),
+                    's_v_onSale': str(variants.get("s_v_onSale")),
+                    's_v_displ': str(variants.get("s_v_displayable")),
+                    's_v_giftCa': str(variants.get("s_v_giftCard")),
+                    's_v_size': str(variants.get("s_v_size")),
+                    's_v_redline': str(variants.get("s_v_redline")),
+                    's_v_storeAv': str(variants.get("s_v_storeAvailability"))
+                }
+
+                asclient.put(variant_key, variant_bins, policy=policy)
+
+    return jsonify({'message': 'Batch insertion for stores successful'}), 201
+
+
+@app.route("/v3/products/insertbatch", methods=["POST"])
+def insert_products_v3():
+    data = request.get_json()
+    for json_obj in data:
+        product_key = ("test", "products", str(json_obj.get("uniqueId")))
+        product_bins = {
+            "colorName": str(json_obj.get("colorName")),
+            "size": str(json_obj.get("size")),
+            "description": str(json_obj.get("description")),
+            "uniqueId": str(json_obj.get("uniqueId")),
+            "catlevel2": str(json_obj.get("catlevel2")),
+            "productInve": str(json_obj.get("productInventory")),
+            "newProduct": str(json_obj.get("newProduct")),
+            "pattern": str(json_obj.get("pattern")),
+            "productIme": str(json_obj.get("productImage")),
+            "color": str(json_obj.get("color")),
+            "imageUrl": str(json_obj.get("imageUrl"))
+        }
+        asclient.put(product_key, product_bins)
+        for varinats in json_obj.get("variants"):
+            variant_key = ("test", "variants", str(varinats.get("variantId")))
+            varinats["productId"] = json_obj.get("uniqueId")
+            variant_bins = {
+                "variantId": str(varinats.get("variantId")),
+                "v_currentP": str(varinats.get("v_currentPrice")),
+                "v_origina": str(varinats.get("v_originalPrice")),
+                "v_displ": str(varinats.get("v_displayMSRP")),
+                "productId": str(varinats.get("productId")),
+                "v_color": str(varinats.get("v_color")),
+                "v_colorCode": str(varinats.get("v_colorCode")),
+                "v_unbxd_co": str(varinats.get("v_unbxd_color_mapping"))
+            }
+            asclient.put(variant_key, variant_bins)
+
+    return jsonify({'message': 'Batch insertion for products successful'}), 201
+
+
+@app.route('/v7/product/details', methods=['POST'])
+def get_products_details_v7():
+    start = datetime.datetime.now()
+    data = request.get_json()
+    response = []
+
+    for product in data["products"]:
+        unique_id = product["uniqueId"]
+
+        # Fetch product details from Aerospike
+        aerospike_key_product = ('test', 'products', unique_id)
+        _, _, product_record = asclient.get(aerospike_key_product)
+        if product_record:
+            stores_vals = []
+
+            for store in product["stores"]:
+                store_id = store["id"]
+
+                # Fetch store details from Aerospike
+                aerospike_key_store = ('test', 'stores', store_id)
+                _, _, store_record = asclient.get(aerospike_key_store)
+
+                # Fetch store products from Aerospike
+                aerospike_key_store_product = ('test', 'store_specific_products', f'{store_id}_{unique_id}')
+                store_product_record ={}
+                try:
+                    _, _, store_product_record = asclient.get(aerospike_key_store_product)
+                except:
+                    pass
+
+                # Combine store details and store products
+                stores_vals.append({**store_record, **store_product_record})
+
+            # Combine product details and stores
+            response.append({**product_record, "stores": stores_vals})
+
+    time_clocked = datetime.datetime.now() - start
+    time_taken = int(time_clocked.total_seconds() * 1000)
+    res = {
+        "products": response,
+        "msTaken": time_taken,
+        'numProducts': len(response)
+    }
+
+    return jsonify(res), 200
+
+def batch_fetch_records(keys):
+    try:
+        records = asclient.get_many(keys)
+        return records
+    except aerospike.exception.AerospikeError as e:
+        print(f"Error fetching records: {e}")
+        return {}
+
+
+@app.route('/v8/product/details', methods=['POST'])
+def get_products_details_v8():
+    start = datetime.datetime.now()
+    data = request.get_json()
+    response = []
+    product_keys = []
+    store_keys = []
+    store_product_keys = []
+
+    for product in data["products"]:
+        unique_id = product["uniqueId"]
+
+        aerospike_key_product = ('test', 'products', unique_id)
+        product_keys.append(aerospike_key_product)
+
+        for store in product["stores"]:
+            store_id = store["id"]
+
+            aerospike_key_store = ('test', 'stores', store_id)
+            store_keys.append(aerospike_key_store)
+
+            aerospike_key_store_product = ('test', 'store_specific_products', f'{store_id}_{unique_id}')
+            store_product_keys.append(aerospike_key_store_product)
+
+    # Batch fetching product records
+    product_records = batch_fetch_records(product_keys)
+    response = product_records
+    # for i, product_record in enumerate(product_records):
+    #     if not product_record:
+    #         continue
+
+    #     stores_vals = []
+
+    #     # Batch fetching store records
+    #     store_records = batch_fetch_records(store_keys[i::len(data["products"])])
+
+    #     # Batch fetching store product records
+    #     store_product_records = batch_fetch_records(store_product_keys[i::len(data["products"])])
+
+    #     for store, store_product in zip(store_records, store_product_records):
+    #         stores_vals.append({**store, **store_product})
+
+    #     response.append({**product_record, "stores": stores_vals})
+
+    time_clocked = datetime.datetime.now() - start
+    time_taken = int(time_clocked.total_seconds() * 1000)
+    res = {
+        "products": response,
+        "msTaken": time_taken,
+        'numProducts': len(response)
+    }
+
+    return jsonify(res), 200
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001)
 
@@ -736,3 +877,5 @@ if __name__ == '__main__':
 # 	v.variantId
 # LIMIT
 #     2000;
+    
+
