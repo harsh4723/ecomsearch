@@ -13,7 +13,7 @@ app = Flask(__name__)
 
 # Connection parameters
 db_params = {
-    'host': '35.245.28.175',
+    'host': 'postgres',
     'port': 5432,
     'database': 'mydatabase',
     'user': 'myuser',
