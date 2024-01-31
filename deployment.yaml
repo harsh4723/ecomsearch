@@ -17,4 +17,5 @@ spec:
       - name: multistore-demo
         image: multistore-demo:latest
         ports:
-        - containerPort: 80
+        - containerPort: 5001
+        imagePullPolicy: Always
