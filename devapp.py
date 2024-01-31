@@ -304,11 +304,11 @@ def retrieve_for_query():
         'time_taken': time_taken,
         'numProducts': len(output)
     }
-    print("Len of products",len(output))
+    #print("Len of products",len(output))
     print("Response", response)
     print("time taken", time_taken)
 
-get_postgres_version()
+#get_postgres_version()
 
 # insert_stores()
 # insert_products()
