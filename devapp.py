@@ -276,9 +276,9 @@ def retrieve_for_query():
         JOIN
             products pht ON sph.uniqueId = pht.uniqueId
         WHERE
-            EXISTS (SELECT 1 FROM unnest(ARRAY['369']) AS x(storeId) WHERE x.storeId = sh.storeId)
-            AND 'XS' = ANY(sph.s_p_size)
-            AND 'Brown' = ANY(pht.color)
+            EXISTS (SELECT 1 FROM unnest(ARRAY['363', '369', '366', '2075', '361', '586']) AS x(storeId) WHERE x.storeId = sh.storeId)
+            AND 'XS' != ANY(sph.s_p_size)
+            AND 'Brown' != ANY(pht.color)
         GROUP BY
             pht.uniqueId
         LIMIT

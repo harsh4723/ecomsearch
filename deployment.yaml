@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multistore-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: multistore-demo
+  template:
+    metadata:
+      labels:
+        app: multistore-demo
+    spec:
+      containers:
+      - name: multistore-demo
+        image: multistore-demo:latest
+        ports:
+        - containerPort: 80

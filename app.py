@@ -568,32 +568,6 @@ def retrieve_for_query():
     data = request.get_json()
     connection = psycopg2.connect(**db_params)
     cursor = connection.cursor()
-    # filter_product_query = """
-    #     SELECT
-    #         pht.uniqueId,
-    #         ARRAY_AGG(filtered_variants.variantId) AS variantIds
-    #     FROM
-    #         (
-    #             SELECT
-    #                 v.variantId,
-    #                 v.productId
-    #             FROM
-    #                 stores_specific_variants sph
-    #             JOIN
-    #                 variants v ON sph.variantId = v.variantId
-    #             WHERE
-    #                 sph.storeId IN ('363', '369', '366', '2075', '361', '586')
-    #                 AND sph.s_v_size NOT IN ('XS', 'XXL')
-    #                 AND v.v_color NOT IN ('Blue')
-    #         ) AS filtered_variants
-    #     JOIN
-    #         products pht ON filtered_variants.productId = pht.uniqueId
-    #     GROUP BY
-    #         pht.uniqueId
-    #     LIMIT
-    #         5000;
-    # """
-
     filter_product_query = """
         SELECT
             pht.uniqueId,
@@ -605,9 +579,9 @@ def retrieve_for_query():
         JOIN
             products pht ON sph.uniqueId = pht.uniqueId
         WHERE
-            EXISTS (SELECT 1 FROM unnest(ARRAY['369']) AS x(storeId) WHERE x.storeId = sh.storeId)
-            AND 'XS' = ANY(sph.s_p_size)
-            AND 'Brown' = ANY(pht.color)
+            EXISTS (SELECT 1 FROM unnest(ARRAY['363', '369', '366', '2075', '361', '586']) AS x(storeId) WHERE x.storeId = sh.storeId)
+            AND 'XS' != ANY(sph.s_p_size)
+            AND 'Brown' != ANY(pht.color)
         GROUP BY
             pht.uniqueId
         LIMIT
@@ -789,7 +763,7 @@ def get_products_details_v7():
 
 def batch_fetch_records(keys):
     try:
-        records = asclient.get_many(keys)
+        records = asclient.batch_read(keys)
         return records
     except aerospike.exception.AerospikeError as e:
         print(f"Error fetching records: {e}")
@@ -804,7 +778,8 @@ def get_products_details_v8():
     product_keys = []
     store_keys = []
     store_product_keys = []
-
+    unique_store_keys = {}
+  
     for product in data["products"]:
         unique_id = product["uniqueId"]
 
@@ -815,30 +790,44 @@ def get_products_details_v8():
             store_id = store["id"]
 
             aerospike_key_store = ('test', 'stores', store_id)
-            store_keys.append(aerospike_key_store)
+            unique_store_keys[aerospike_key_store] = 1
 
             aerospike_key_store_product = ('test', 'store_specific_products', f'{store_id}_{unique_id}')
             store_product_keys.append(aerospike_key_store_product)
 
     # Batch fetching product records
     product_records = batch_fetch_records(product_keys)
-    response = product_records
-    # for i, product_record in enumerate(product_records):
-    #     if not product_record:
-    #         continue
+    store_records = batch_fetch_records(unique_store_keys.keys())
+    store_product_records = batch_fetch_records(store_product_keys)
+    
+    product_val_map = {}
+    for br in product_records.batch_records:
+        product_val_map[br.record[0][2]] = br.record[-1]
+    
+    # print("dddddd", product_val_map)
+    # sys.stdout.flush()
+    store_vals_map = {}
+    for br in store_records.batch_records:
+        store_vals_map[br.record[0][2]] = br.record[-1]
 
-    #     stores_vals = []
+    store_prod_vals_map = {}
+    for br in store_product_records.batch_records:
+        try:
+            store_prod_vals_map[br.record[0][2]] = br.record[-1]
+        except:
+            pass
 
-    #     # Batch fetching store records
-    #     store_records = batch_fetch_records(store_keys[i::len(data["products"])])
+    for product in data["products"]:
+        _product = product_val_map.get(product["uniqueId"],{})
+        stores_vals = []
+        for store in product["stores"]:
+            store_products = store_prod_vals_map.get(store["id"]+"_"+product["uniqueId"], {})
+            
+            _store = store_vals_map.get(store["id"],{})
+            stores_vals.append({**_store, **store_products})
+        _product["stores"] = stores_vals
+        response.append(_product)
 
-    #     # Batch fetching store product records
-    #     store_product_records = batch_fetch_records(store_product_keys[i::len(data["products"])])
-
-    #     for store, store_product in zip(store_records, store_product_records):
-    #         stores_vals.append({**store, **store_product})
-
-    #     response.append({**product_record, "stores": stores_vals})
 
     time_clocked = datetime.datetime.now() - start
     time_taken = int(time_clocked.total_seconds() * 1000)
