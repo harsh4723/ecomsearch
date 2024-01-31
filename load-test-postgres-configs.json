@@ -1,0 +1,19 @@
+{
+    "iteration_count": 10,
+    "duration": 5,
+    "load_type": "waved",
+    "env": {
+      "baseUrl": "http://172.17.0.2:5001/"
+    },
+    "steps": [
+      {
+        "id": 1,
+        "name": "postgres filter",
+        "url": "http://172.17.0.2:5001/filter",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      }
+    ]
+  }
