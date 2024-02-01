@@ -65,7 +65,10 @@ def retrieve_for_query():
         'time_taken': time_taken,
         'numProducts': len(output)
     }
-    
+    print("Harsh len of products",len(output))
+    sys.stdout.flush()
+    print("Harsh mstaken",time_taken)
+    sys.stdout.flush()
     return jsonify(response)
 
 
