@@ -3,10 +3,10 @@
     "load_type": "waved",
     "manual_load": [
     {"duration": 3, "count": 50},
-    {"duration": 5, "count": 150},
+    {"duration": 5, "count": 125},
     {"duration": 8, "count": 160},
     {"duration": 5, "count": 100},
-    {"duration": 3, "count": 90}
+    {"duration": 3, "count": 75}
     ],
     "env": {
       "baseUrl": "http://34.86.235.188/"
