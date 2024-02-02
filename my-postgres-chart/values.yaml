@@ -9,7 +9,7 @@ postgresql:
     enabled: true
     storageClass: "standard"
     accessMode: "ReadWriteOnce"
-    size: "1Gi"
+    size: "4Gi"
     existingClaim: ""
     subPath: "postgres-data"
 service:
