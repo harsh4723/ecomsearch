@@ -71,7 +71,7 @@ spec:
               cpu: "500m"
           readinessProbe:
             exec:
-              command: ["ash", "-i", "-c", "asd-info"]
+              command: ["sh", "-c", "asd-info"]
             initialDelaySeconds: 5
             timeoutSeconds: 1
             periodSeconds: 10
