@@ -180,6 +180,9 @@ def get_products_details_v8():
     store_records = batch_fetch_records(unique_store_keys.keys())
     store_product_records = batch_fetch_records(store_product_keys)
     
+    print("Harsh product_records",product_records)
+    sys.stdout.flush()
+    
     product_val_map = {}
     for br in product_records.batch_records:
         product_val_map[br.record[0][2]] = br.record[-1]
@@ -221,7 +224,7 @@ def get_products_details_v8():
     sys.stdout.flush()
     print("Harsh mstaken",time_taken)
     sys.stdout.flush()
-    
+
     return jsonify(res), 200
 
 

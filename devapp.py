@@ -2,6 +2,7 @@ import psycopg2
 import datetime
 import json
 import aerospike
+import sys
 
 db_params = {
     'host': '35.245.28.175',
@@ -372,9 +373,187 @@ def insert_products_v3():
     print("Added products")
 
 
+def batch_fetch_records(keys):
+    try:
+        records = asclient.batch_read(keys)
+        return records
+    except aerospike.exception.AerospikeError as e:
+        print(f"Error fetching records: {e}")
+        return {}
+aerodata = {
+    "numProducts": 158,
+    "products": [
+        {
+            "stores": [
+                {
+                    "id": "369"
+                }
+            ],
+            "uniqueId": "00305330"
+        },
+        {
+            "stores": [
+                {
+                    "id": "369"
+                }
+            ],
+            "uniqueId": "00305332"
+        },
+        {
+            "stores": [
+                {
+                    "id": "369"
+                }
+            ],
+            "uniqueId": "01012251"
+        },
+        {
+            "stores": [
+                {
+                    "id": "369"
+                }
+            ],
+            "uniqueId": "01012412C"
+        },
+        {
+            "stores": [
+                {
+                    "id": "369"
+                }
+            ],
+            "uniqueId": "01203182F"
+        },
+        {
+            "stores": [
+                {
+                    "id": "369"
+                }
+            ],
+            "uniqueId": "01698274"
+        },
+        {
+            "stores": [
+                {
+                    "id": "369"
+                }
+            ],
+            "uniqueId": "01698892"
+        },
+        {
+            "stores": [
+                {
+                    "id": "369"
+                }
+            ],
+            "uniqueId": "01760321C"
+        },
+        {
+            "stores": [
+                {
+                    "id": "369"
+                }
+            ],
+            "uniqueId": "01760500C"
+        },
+        {
+            "stores": [
+                {
+                    "id": "369"
+                }
+            ],
+            "uniqueId": "01761043C"
+        },
+        {
+            "stores": [
+                {
+                    "id": "369"
+                }
+            ],
+            "uniqueId": "09807079"
+        }
+    ],
+    "time_taken": 177
+}
+
+def get_products_details_v8():
+    start = datetime.datetime.now()
+    data = aerodata
+    response = []
+    product_keys = []
+    store_keys = []
+    store_product_keys = []
+    unique_store_keys = {}
+  
+    for product in data["products"]:
+        unique_id = product["uniqueId"]
+
+        aerospike_key_product = ('test', 'products', unique_id)
+        product_keys.append(aerospike_key_product)
+
+        for store in product["stores"]:
+            store_id = store["id"]
+
+            aerospike_key_store = ('test', 'stores', store_id)
+            unique_store_keys[aerospike_key_store] = 1
+
+            aerospike_key_store_product = ('test', 'store_specific_products', f'{store_id}_{unique_id}')
+            store_product_keys.append(aerospike_key_store_product)
+
+    # Batch fetching product records
+    product_records = batch_fetch_records(product_keys)
+    store_records = batch_fetch_records(unique_store_keys.keys())
+    store_product_records = batch_fetch_records(store_product_keys)
+    
+    print("Harsh product_records",product_records)
+    sys.stdout.flush()
+    
+    product_val_map = {}
+    for br in product_records.batch_records:
+        product_val_map[br.record[0][2]] = br.record[-1]
+    
+    # print("dddddd", product_val_map)
+    # sys.stdout.flush()
+    store_vals_map = {}
+    for br in store_records.batch_records:
+        store_vals_map[br.record[0][2]] = br.record[-1]
+
+    store_prod_vals_map = {}
+    for br in store_product_records.batch_records:
+        try:
+            store_prod_vals_map[br.record[0][2]] = br.record[-1]
+        except:
+            pass
+
+    for product in data["products"]:
+        _product = product_val_map.get(product["uniqueId"],{})
+        stores_vals = []
+        for store in product["stores"]:
+            store_products = store_prod_vals_map.get(store["id"]+"_"+product["uniqueId"], {})
+            
+            _store = store_vals_map.get(store["id"],{})
+            stores_vals.append({**_store, **store_products})
+        _product["stores"] = stores_vals
+        response.append(_product)
+
+
+    time_clocked = datetime.datetime.now() - start
+    time_taken = int(time_clocked.total_seconds() * 1000)
+    res = {
+        "products": response,
+        "msTaken": time_taken,
+        'numProducts': len(response)
+    }
+    print("Harsh products",response)
+    sys.stdout.flush()
+    print("Harsh len of products",len(response))
+    sys.stdout.flush()
+    print("Harsh mstaken",time_taken)
+    sys.stdout.flush()
+
 #get_postgres_version()
 
 # insert_stores()
 # insert_products()
-insert_stores_v3()
-insert_products_v3()
+#insert_stores_v3()
+#insert_products_v3()
+get_products_details_v8()
