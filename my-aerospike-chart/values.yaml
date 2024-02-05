@@ -17,7 +17,7 @@ aerospike:
   heartbeatPort: 3002
 
   # Number of Aerospike nodes
-  nodeCount: 3
+  nodeCount: 1
 
   # Storage configuration
   storage:
