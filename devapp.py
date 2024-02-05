@@ -1,6 +1,7 @@
 import psycopg2
 import datetime
 import json
+import aerospike
 
 db_params = {
     'host': '35.245.28.175',
@@ -9,6 +10,12 @@ db_params = {
     'user': 'myuser',
     'password': 'mypassword'
 }
+
+config = {
+    'hosts': [('35.194.91.164', 3000)]
+}
+
+asclient = aerospike.client(config).connect()
 
 f = open('express_products4.json')
 data = json.load(f)
@@ -239,32 +246,6 @@ def retrieve_for_query():
     start = datetime.datetime.now()
     connection = psycopg2.connect(**db_params)
     cursor = connection.cursor()
-    # filter_product_query = """
-    #     SELECT
-    #         pht.uniqueId,
-    #         ARRAY_AGG(filtered_variants.variantId) AS variantIds
-    #     FROM
-    #         (
-    #             SELECT
-    #                 v.variantId,
-    #                 v.productId
-    #             FROM
-    #                 stores_specific_variants sph
-    #             JOIN
-    #                 variants v ON sph.variantId = v.variantId
-    #             WHERE
-    #                 sph.storeId IN ('363', '369', '366', '2075', '361', '586')
-    #                 AND sph.s_v_size NOT IN ('XS', 'XXL')
-    #                 AND v.v_color NOT IN ('Blue')
-    #         ) AS filtered_variants
-    #     JOIN
-    #         products pht ON filtered_variants.productId = pht.uniqueId
-    #     GROUP BY
-    #         pht.uniqueId
-    #     LIMIT
-    #         5000;
-    # """
-
     filter_product_query = """
         SELECT
             pht.uniqueId,
@@ -308,8 +289,92 @@ def retrieve_for_query():
     #print("Response", response)
     print("time taken", time_taken)
 
+
+## aerospike
+def insert_stores_v3():
+    data = list_stores
+    # Specify the serializer (SERIALIZER_PYTHON in this example)
+    policy = {'serializer': aerospike.SERIALIZER_JSON}
+    for json_obj in data:
+        store_key = ('test', 'stores', str(json_obj["storeId"]))
+        store_bins = {
+            'name': json_obj["name"],
+            'location': json_obj["location"]
+        }
+
+        asclient.put(store_key, store_bins, policy=policy)
+
+        for products in json_obj["products"]:
+            product_key = ('test', 'store_specific_products', str(json_obj["storeId"]) + "_" + str(products["uniqueId"]))
+            product_bins = {
+                'uniqueId': str(products["uniqueId"]),
+                'storeId': str(json_obj["storeId"]),
+                's_p_sell': str(products["s_p_selling_price"]),
+                's_p_avail': str(products["s_p_availability"]),
+                's_p_size': str(products["s_p_size"]),
+                's_p_color': str(products["s_p_color"])
+            }
+
+            asclient.put(product_key, product_bins, policy=policy)
+
+            for variants in products["variants"]:
+                variant_key = ('test', 'store_specific_variants', str(json_obj["storeId"]) + "_" + str(variants["variantId"]))
+                variant_bins = {
+                    'productId': str(products.get("uniqueId")),
+                    'storeId': str(json_obj.get("storeId")),
+                    'variantId': str(variants.get("variantId")),
+                    's_v_onSale': str(variants.get("s_v_onSale")),
+                    's_v_displ': str(variants.get("s_v_displayable")),
+                    's_v_giftCa': str(variants.get("s_v_giftCard")),
+                    's_v_size': str(variants.get("s_v_size")),
+                    's_v_redline': str(variants.get("s_v_redline")),
+                    's_v_storeAv': str(variants.get("s_v_storeAvailability"))
+                }
+
+                asclient.put(variant_key, variant_bins, policy=policy)
+
+    print("Added stores")
+
+
+def insert_products_v3():
+    data = products
+    for json_obj in data:
+        product_key = ("test", "products", str(json_obj.get("uniqueId")))
+        product_bins = {
+            "colorName": str(json_obj.get("colorName")),
+            "size": str(json_obj.get("size")),
+            "description": str(json_obj.get("description")),
+            "uniqueId": str(json_obj.get("uniqueId")),
+            "catlevel2": str(json_obj.get("catlevel2")),
+            "productInve": str(json_obj.get("productInventory")),
+            "newProduct": str(json_obj.get("newProduct")),
+            "pattern": str(json_obj.get("pattern")),
+            "productIme": str(json_obj.get("productImage")),
+            "color": str(json_obj.get("color")),
+            "imageUrl": str(json_obj.get("imageUrl"))
+        }
+        asclient.put(product_key, product_bins)
+        for varinats in json_obj.get("variants"):
+            variant_key = ("test", "variants", str(varinats.get("variantId")))
+            varinats["productId"] = json_obj.get("uniqueId")
+            variant_bins = {
+                "variantId": str(varinats.get("variantId")),
+                "v_currentP": str(varinats.get("v_currentPrice")),
+                "v_origina": str(varinats.get("v_originalPrice")),
+                "v_displ": str(varinats.get("v_displayMSRP")),
+                "productId": str(varinats.get("productId")),
+                "v_color": str(varinats.get("v_color")),
+                "v_colorCode": str(varinats.get("v_colorCode")),
+                "v_unbxd_co": str(varinats.get("v_unbxd_color_mapping"))
+            }
+            asclient.put(variant_key, variant_bins)
+
+    print("Added products")
+
+
 #get_postgres_version()
 
 # insert_stores()
 # insert_products()
-retrieve_for_query()
+insert_stores_v3()
+insert_products_v3()
