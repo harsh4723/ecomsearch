@@ -1,0 +1,101 @@
+# templates/aerospike-cluster.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-aerospike-access-service
+  labels:
+    app: aerospike
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+spec:
+  type: LoadBalancer
+  ports:
+    - port: {{ .Values.accessService.port }}
+      targetPort: 3000
+      name: access-service
+  selector:
+    app: aerospike
+    release: {{ .Release.Name }}
+
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-aerospike-node
+  labels:
+    app: aerospike
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+spec:
+  serviceName: {{ .Release.Name }}-aerospike-node
+  replicas: {{ .Values.aerospike.nodeCount }}
+  selector:
+    matchLabels:
+      app: aerospike
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: aerospike
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: aerospike-node
+          image: "{{ .Values.aerospike.image.repository }}:{{ .Values.aerospike.image.tag }}"
+          imagePullPolicy: {{ .Values.aerospike.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.aerospike.fabricPort }}
+            - containerPort: {{ .Values.aerospike.heartbeatPort }}
+          volumeMounts:
+            - mountPath: /opt/aerospike/data
+              name: data
+          env:
+            - name: MY_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: SERVICE_PORT
+              value: "3000"
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          readinessProbe:
+            exec:
+              command: ["ash", "-i", "-c", "asd-info"]
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-aerospike-data
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-aerospike-data
+  labels:
+    app: aerospike
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.aerospike.storage.size }}
+  storageClassName: {{ .Values.aerospike.storage.storageClass }}

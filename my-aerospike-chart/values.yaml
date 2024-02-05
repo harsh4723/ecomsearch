@@ -1,0 +1,43 @@
+# values.yaml
+
+# Aerospike Configuration
+aerospike:
+  image:
+    repository: aerospike/aerospike-server
+    tag: "5.6.0.3"
+    pullPolicy: IfNotPresent
+
+  namespace: aerospike
+
+  clusterName: my-aerospike-cluster
+
+  # Aerospike network configuration
+  networkPolicy: enabled
+  fabricPort: 3001
+  heartbeatPort: 3002
+
+  # Number of Aerospike nodes
+  nodeCount: 3
+
+  # Storage configuration
+  storage:
+    size: 5Gi
+    storageClass: ""
+
+  # Authentication
+  security:
+    enabled: false
+    enableSecurityScrambleOn: false
+    enableSecurityScrambleAdmin: false
+    username: admin
+    password: admin
+
+# Aerospike Access Service
+accessService:
+  enabled: true
+  port: 3000
+
+# Aerospike Management Console
+managementConsole:
+  enabled: true
+  port: 8081
