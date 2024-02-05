@@ -69,14 +69,6 @@ spec:
             limits:
               memory: "1Gi"
               cpu: "500m"
-          readinessProbe:
-            exec:
-              command: ["sh", "-c", "asd-info"]
-            initialDelaySeconds: 5
-            timeoutSeconds: 1
-            periodSeconds: 10
-            successThreshold: 1
-            failureThreshold: 3
       volumes:
         - name: data
           persistentVolumeClaim:
