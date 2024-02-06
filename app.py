@@ -737,7 +737,11 @@ def get_products_details_v7():
 
         # Fetch product details from Aerospike
         aerospike_key_product = ('test', 'products', unique_id)
-        _, _, product_record = asclient.get(aerospike_key_product)
+        product_record ={}
+        try:
+            _, _, product_record = asclient.get(aerospike_key_product)
+        except:
+            pass
         if product_record:
             stores_vals = []
 
@@ -746,7 +750,11 @@ def get_products_details_v7():
 
                 # Fetch store details from Aerospike
                 aerospike_key_store = ('test', 'stores', store_id)
-                _, _, store_record = asclient.get(aerospike_key_store)
+                store_record ={}
+                try:
+                    _, _, store_record = asclient.get(aerospike_key_store)
+                except:
+                    pass
 
                 # Fetch store products from Aerospike
                 aerospike_key_store_product = ('test', 'store_specific_products', f'{store_id}_{unique_id}')
@@ -773,13 +781,15 @@ def get_products_details_v7():
     return jsonify(res), 200
 
 def batch_fetch_records(keys):
+    print("keys record", keys)
+    sys.stdout.flush()
     try:
         records = asclient.batch_read(keys)
         return records
     except aerospike.exception.AerospikeError as e:
         print(f"Error fetching records: {e}")
+        sys.stdout.flush()
         return {}
-
 
 @app.route('/v8/product/details', methods=['POST'])
 def get_products_details_v8():
@@ -808,18 +818,25 @@ def get_products_details_v8():
 
     # Batch fetching product records
     product_records = batch_fetch_records(product_keys)
-    store_records = batch_fetch_records(unique_store_keys.keys())
+    store_records = batch_fetch_records(list(unique_store_keys.keys()))
     store_product_records = batch_fetch_records(store_product_keys)
     
     product_val_map = {}
     for br in product_records.batch_records:
-        product_val_map[br.record[0][2]] = br.record[-1]
+        try:
+            product_val_map[br.record[0][2]] = br.record[-1]
+        except:
+            pass
     
     # print("dddddd", product_val_map)
     # sys.stdout.flush()
     store_vals_map = {}
+    
     for br in store_records.batch_records:
-        store_vals_map[br.record[0][2]] = br.record[-1]
+        try:
+            store_vals_map[br.record[0][2]] = br.record[-1]
+        except:
+            pass
 
     store_prod_vals_map = {}
     for br in store_product_records.batch_records:

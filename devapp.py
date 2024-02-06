@@ -13,7 +13,7 @@ db_params = {
 }
 
 config = {
-    'hosts': [('35.194.91.164', 3000)]
+    'hosts': [('as1', 3000)]
 }
 
 asclient = aerospike.client(config).connect()
@@ -21,7 +21,7 @@ asclient = aerospike.client(config).connect()
 f = open('express_products4.json')
 data = json.load(f)
 
-concated_data = data
+concated_data = data[:2000]
 
 stores = {}
 
@@ -504,7 +504,7 @@ def get_products_details_v8():
     store_records = batch_fetch_records(unique_store_keys.keys())
     store_product_records = batch_fetch_records(store_product_keys)
     
-    print("Harsh product_records",product_records)
+    print("Harsh product_records",product_records.batch_records)
     sys.stdout.flush()
     
     product_val_map = {}
@@ -554,6 +554,6 @@ def get_products_details_v8():
 
 # insert_stores()
 # insert_products()
-#insert_stores_v3()
-#insert_products_v3()
-get_products_details_v8()
+insert_stores_v3()
+insert_products_v3()
+#get_products_details_v8()
