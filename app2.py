@@ -152,8 +152,6 @@ def get_products_details_v7():
     return jsonify(res), 200
 
 def batch_fetch_records(keys):
-    print("keys record", keys)
-    sys.stdout.flush()
     try:
         records = asclient.batch_read(keys)
         return records
