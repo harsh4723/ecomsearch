@@ -13,7 +13,7 @@ db_params = {
 }
 
 config = {
-    'hosts': [('as1', 3000)]
+    'hosts': [('35.194.91.164', 3000)]
 }
 
 asclient = aerospike.client(config).connect()
