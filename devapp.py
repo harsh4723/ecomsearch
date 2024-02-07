@@ -5,7 +5,7 @@ import aerospike
 import sys
 
 db_params = {
-    'host': '35.245.28.175',
+    'host': '35.194.90.168',
     'port': 5432,
     'database': 'mydatabase',
     'user': 'myuser',
