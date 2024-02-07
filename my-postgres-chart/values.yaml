@@ -7,7 +7,7 @@ postgresql:
   postgresqlDatabase: mydatabase
   persistence:
     enabled: true
-    storageClass: "standard"
+    storageClass: ""
     accessMode: "ReadWriteOnce"
     size: "4Gi"
     existingClaim: ""

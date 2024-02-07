@@ -42,12 +42,7 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
-  volumeClaimTemplates:
-  - metadata:
-      name: data
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      storageClassName: {{ .Values.postgresql.persistence.storageClass | quote }}
-      resources:
-        requests:
-          storage: {{ .Values.postgresql.persistence.size }}
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-postgres-data
