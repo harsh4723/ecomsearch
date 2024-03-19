@@ -50,7 +50,11 @@ spec:
             - containerPort: {{ .Values.aerospike.heartbeatPort }}
           volumeMounts:
             - mountPath: /opt/aerospike/data
-              name: data
+              name: data-{{ .PodOrdinal }}
+      volumes:
+        - name: data-{{ .PodOrdinal }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-aerospike-data-{{ .PodOrdinal }} # Use a unique PVC for each replica
           env:
             - name: MY_POD_IP
               valueFrom:
@@ -69,17 +73,14 @@ spec:
             limits:
               memory: "1Gi"
               cpu: "500m"
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: {{ .Release.Name }}-aerospike-data
 
 ---
 
+{{- range $index, $pod := until (int .Values.aerospike.nodeCount) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Release.Name }}-aerospike-data
+  name: {{ .Release.Name }}-aerospike-data-{{ $index }}
   labels:
     app: aerospike
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
@@ -91,3 +92,4 @@ spec:
     requests:
       storage: {{ .Values.aerospike.storage.size }}
   storageClassName: {{ .Values.aerospike.storage.storageClass }}
+{{- end }}
