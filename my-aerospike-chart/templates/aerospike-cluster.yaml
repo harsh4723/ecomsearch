@@ -86,7 +86,7 @@ metadata:
     release: {{ .Release.Name }}
 spec:
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   resources:
     requests:
       storage: {{ .Values.aerospike.storage.size }}
