@@ -22,7 +22,7 @@ aerospike:
   # Storage configuration
   storage:
     size: 5Gi
-    storageClass: ""
+    storageClass: standard
 
   # Authentication
   security:

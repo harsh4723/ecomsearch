@@ -501,7 +501,7 @@ def get_products_details_v8():
 
     # Batch fetching product records
     product_records = batch_fetch_records(product_keys)
-    store_records = batch_fetch_records(unique_store_keys.keys())
+    store_records = batch_fetch_records(list(unique_store_keys.keys()))
     store_product_records = batch_fetch_records(store_product_keys)
     
     print("Harsh product_records",product_records.batch_records)
