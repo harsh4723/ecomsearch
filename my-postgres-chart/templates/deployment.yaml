@@ -8,7 +8,7 @@ metadata:
     app: {{ include "my-postgres-chart.name" . }}
 spec:
   serviceName: "{{ .Release.Name }}-postgresql-headless"
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: {{ include "my-postgres-chart.name" . }}

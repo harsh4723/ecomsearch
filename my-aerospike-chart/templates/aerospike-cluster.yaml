@@ -49,7 +49,7 @@ spec:
             - containerPort: {{ .Values.aerospike.fabricPort }}
             - containerPort: {{ .Values.aerospike.heartbeatPort }}
           volumeMounts:
-            - mountPath: /opt/aerospike/data
+            - mountPath: /opt/aerospike/etc
               name: data
           env:
             - name: MY_POD_IP
