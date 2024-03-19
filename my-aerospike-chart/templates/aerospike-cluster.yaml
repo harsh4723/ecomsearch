@@ -76,11 +76,10 @@ spec:
 
 ---
 
-{{- range $index, $pod := until (int .Values.aerospike.nodeCount) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Release.Name }}-aerospike-data-{{ $index }}
+  name: {{ .Release.Name }}-aerospike-data-0
   labels:
     app: aerospike
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
@@ -92,4 +91,20 @@ spec:
     requests:
       storage: {{ .Values.aerospike.storage.size }}
   storageClassName: {{ .Values.aerospike.storage.storageClass }}
-{{- end }}
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-aerospike-data-1
+  labels:
+    app: aerospike
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.aerospike.storage.size }}
+  storageClassName: {{ .Values.aerospike.storage.storageClass }}
+  
