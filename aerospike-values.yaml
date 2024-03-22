@@ -1,0 +1,49 @@
+apiVersion: asdb.aerospike.com/v1
+kind: AerospikeCluster
+metadata:
+  name: aerocluster
+  namespace: search
+
+spec:
+  size: 2
+  image: aerospike/aerospike-server:7.0.0.0
+
+  storage:
+    filesystemVolumePolicy:
+      cascadeDelete: true
+      initMethod: deleteFiles
+    blockVolumePolicy:
+      cascadeDelete: true
+    volumes:
+      - name: datadir
+        aerospike:
+          path: /opt/aerospike/data
+        source:
+          persistentVolume:
+            storageClass: ssd
+            volumeMode: Filesystem
+            size: 2Gi
+
+  podSpec:
+    multiPodPerHost: true
+
+  aerospikeConfig:
+    security:
+      enable-security: false
+
+    network:
+      service:
+        port: 3000
+      heartbeat:
+        port: 3002
+      fabric:
+        port: 3001
+
+    namespaces:
+      - name: test
+        replication-factor: 2
+        memory-size: 1073741824
+        storage-engine:
+          type: device
+          devices:
+            - /opt/aerospike/data
