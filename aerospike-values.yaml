@@ -1,49 +1,54 @@
-apiVersion: asdb.aerospike.com/v1
-kind: AerospikeCluster
-metadata:
-  name: aerocluster
-  namespace: search
 
-spec:
-  size: 2
-  image: aerospike/aerospike-server:7.0.0.0
+replicas: 2
 
-  storage:
-    filesystemVolumePolicy:
-      cascadeDelete: true
-      initMethod: deleteFiles
-    blockVolumePolicy:
-      cascadeDelete: true
-    volumes:
-      - name: datadir
-        aerospike:
-          path: /opt/aerospike/data
-        source:
-          persistentVolume:
-            storageClass: ssd
-            volumeMode: Filesystem
-            size: 2Gi
+image:
+  repository: aerospike/aerospike-server
+  tag: 7.0.0.0
 
-  podSpec:
-    multiPodPerHost: true
 
-  aerospikeConfig:
-    security:
-      enable-security: false
+## Aerospike Configuration
+aerospikeConfig:
+  security:
+    enable-security: false
 
-    network:
-      service:
-        port: 3000
-      heartbeat:
-        port: 3002
-      fabric:
-        port: 3001
+  network:
+    service:
+      port: 3000
+    fabric:
+      port: 3001
+    heartbeat:
+      port: 3002
 
-    namespaces:
-      - name: test
-        replication-factor: 2
-        memory-size: 1073741824
-        storage-engine:
-          type: device
-          devices:
-            - /opt/aerospike/data
+  namespaces:
+    - name: test
+      replication-factor: 2
+      memory-size: 1073741824
+      storage-engine:
+        type: device
+        devices:
+          - /opt/aerospike/data
+
+
+## Pod spec
+podSpec:
+  multiPodPerHost: true
+
+
+## Storage configuration
+storage:
+  filesystemVolumePolicy:
+    cascadeDelete: true
+    initMethod: deleteFiles
+  blockVolumePolicy:
+    cascadeDelete: true
+  volumes:
+    - name: datadir
+      aerospike:
+        path: /opt/aerospike/data
+      source:
+        persistentVolume:
+          storageClass: ssd
+          volumeMode: Filesystem
+          size: 2Gi
+
+devMode: false
