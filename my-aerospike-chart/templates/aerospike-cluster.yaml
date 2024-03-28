@@ -9,7 +9,7 @@ metadata:
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   ports:
     - port: {{ .Values.accessService.port }}
       targetPort: 3000
@@ -64,11 +64,11 @@ spec:
                   fieldPath: status.hostIP
           resources:
             requests:
-              memory: "512Mi"
-              cpu: "250m"
-            limits:
               memory: "1Gi"
-              cpu: "500m"
+              cpu: 1
+            limits:
+              memory: "2Gi"
+              cpu: 2
       volumes:
         - name: data
           persistentVolumeClaim:

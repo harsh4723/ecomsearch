@@ -14,7 +14,7 @@ postgresql:
     subPath: "postgres-data"
 service:
   port: 5432
-  type: LoadBalancer
+  type: ClusterIP
   external: false
   annotations:
     networking.gke.io/load-balancer-type: "Internal"
